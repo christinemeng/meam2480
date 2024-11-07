@@ -1,0 +1,96 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+# Initial conditions
+theta0 = 50 * np.pi / 180 # initial angle
+omega0 = 0.0  # initial angular velocity
+MOI = .4508
+COM = .22225
+armMass = 5.234
+launchAngle = 35 * np.pi / 180
+maxTheta = np.pi - launchAngle
+loadArmLength = .64135
+launchHeight = (23.75 * 2.534 / 100) + loadArmLength * np.cos(launchAngle)
+# Time parameters
+dt = 0.01  # time step
+
+def angular_acceleration(theta):
+    torque = 9.81 * abs(np.sin(theta)) * (armMass * COM)
+    angularAccel = torque / MOI
+    return angularAccel
+
+def integrate_angular_acceleration(theta0, omega0, dt, maxTheta):
+    thetas = [theta0]
+    omegas = [omega0]
+
+    while thetas[-1] < maxTheta:
+        alpha = angular_acceleration(thetas[-1])
+        omega = omegas[-1] + alpha * dt
+        theta = thetas[-1] + omega * dt
+
+        thetas.append(theta)
+        omegas.append(omega)
+
+    return np.array(thetas), np.array(omegas)
+
+thetas, omegas = integrate_angular_acceleration(theta0, omega0, dt, maxTheta)
+time = np.arange(0, omegas.size * dt, dt)
+
+exitOmega = omegas[omegas.size - 1]
+tangentVelocity = loadArmLength * exitOmega
+launchAngle = np.pi/2 - launchAngle
+Vx0 = tangentVelocity * np.cos(launchAngle)
+Vy0 = tangentVelocity * np.sin(launchAngle)
+print(Vx0)
+print(Vy0)
+
+# Now calculate the range by integrating drag force
+x0 = 0
+cd = .47
+A = 0.011675
+airDensity = 1.293
+mass = 0.045
+timeInAir = (-1 * Vy0 - (Vy0**2 - 4 * -4.905 * launchHeight)**.5) / (-9.81)
+print(timeInAir)
+num_steps = int(timeInAir / dt)
+dt = 0.01  # time step
+
+def acceleration(Vx):
+    accel = -.5 * airDensity * Vx**2 * cd * A / mass
+    return accel
+
+def integrate_acceleration(x0, Vx0, dt, num_steps):
+    velocities = np.zeros(num_steps)
+    positions = np.zeros(num_steps)
+    velocities[0] = Vx0
+    positions[0] = x0
+
+    for i in range(1, num_steps):
+        a = acceleration(velocities[i-1])
+        velocities[i] = velocities[i-1] + a * dt
+        positions[i] = positions[i-1] + velocities[i] * dt
+
+    return positions, velocities
+
+positions, velocities = integrate_acceleration(x0, Vx0, dt, num_steps)
+time = np.arange(dt, num_steps*dt, dt)
+# now plot the trajectory
+plt.figure(figsize=(10, 5))
+y = launchHeight + Vy0 * time - .5 * 9.81 * time**2
+plt.figure(figsize=(10, 5))
+plt.plot(positions, y)
+wallDistance = 2.6 #added offset of the launcher release point to the launcher line
+holeHeight = 1
+holeSize = .25
+ballRad = .0762
+holeBottom = holeHeight - holeSize + ballRad
+holeTop = holeHeight + holeSize - ballRad
+hole = np.array([holeBottom, holeTop])
+plt.plot(np.array([wallDistance, wallDistance]), hole)
+plt.grid(True)
+plt.xlabel('x disp (m)')
+plt.ylabel('y disp (m)')
+plt.title('Trajectory of Ball')
+plt.show()
+
